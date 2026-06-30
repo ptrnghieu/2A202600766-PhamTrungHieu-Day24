@@ -1,0 +1,91 @@
+MedViet Governance Lab — Test Summary
+=======================================
+
+This file reflects a full re-verification pass: real dependencies were
+installed in an isolated venv and actual test suites / CLI tools were
+executed (not just code review). Two real bugs were found and fixed
+during this pass (see "Bugs found & fixed" below).
+
+1. Phần 1 — Data generation (scripts/generate_data.py)
+   Generated 200 patient records to data/raw/patients_raw.csv. PASS
+
+2. Phần 2 — PII detection (Presidio + custom recognizers)
+   Ran tests/test_pii.py with presidio-analyzer + a substitute multi-language
+   spaCy NER model (xx_ent_wiki_sm), since the lab-specified
+   "vi_core_news_lg" does not exist on PyPI or in spaCy's model index —
+   Vietnamese has no officially distributed spaCy pretrained pipeline.
+   This is a defect in the lab spec itself, not in this implementation;
+   the substitute was used only to validate that the analyzer/recognizer
+   wiring and regex patterns work end-to-end, and is NOT referenced
+   anywhere in the committed code (detector.py still specifies the
+   literal "vi_core_news_lg" exactly as the spec requires).
+
+   Result: 5/6 tests PASS.
+     test_cccd_detected                            PASS
+     test_phone_detected                           PASS
+     test_email_detected                            PASS
+     test_pii_not_in_output                         PASS
+     test_non_pii_columns_unchanged                 PASS
+     test_detection_rate_above_95_percent           FAIL (blocked, see below)
+
+   Per-field detection rate with the substitute model: cccd 100%,
+   so_dien_thoai 100%, email 100%, ho_ten 58% (combined 95%+ threshold
+   not reached). The 58% figure is a property of the substitute model's
+   weak Vietnamese name NER, not of the recognizer/pipeline code — a
+   real Vietnamese-tuned model would be expected to score far higher.
+   This test cannot be made to literally pass until a working Vietnamese
+   spaCy model is substituted for "vi_core_news_lg" in detector.py.
+
+3. Phần 3 — RBAC (Casbin) enforcement
+   enforce(role, resource, action) checked for all 4 roles against
+   allowed/denied resource-action pairs (admin, ml_engineer, data_analyst,
+   intern), including deny-by-omission cases (ml_engineer cannot delete
+   production_data or read patient_data; data_analyst/intern cannot read
+   patient_data). ALL PASS (9/9)
+
+4. Phần 3b — ABAC (OPA/Rego) policy
+   Verified with a real opa binary (v1.18.1) against policies/opa_policy.rego:
+     admin delete patient_data            -> allow   PASS
+     ml_engineer delete production_data   -> deny    PASS
+     data_analyst read aggregated_metrics -> allow   PASS
+     data_analyst write reports           -> allow   PASS
+     data_analyst read patient_data       -> deny    PASS
+     intern read sandbox_data             -> allow   PASS
+     intern read patient_data             -> deny    PASS
+   ALL PASS (7/7)
+
+5. Phần 4 — Envelope encryption (SimpleVault)
+   encrypt_data() -> decrypt_data() round-trip verified to return the
+   original plaintext exactly. PASS
+
+6. Phần 6 — Bandit SAST scan
+   bandit -r src/ -ll -> No medium/high severity issues found
+   (re-run after all bugfixes in this session). See bandit_report.json.
+
+Bugs found & fixed during this verification pass
+--------------------------------------------------
+1. src/pii/detector.py — VN_CCCD and VN_PHONE PatternRecognizer instances
+   were missing supported_language="vi". They defaulted to "en", but the
+   AnalyzerEngine was restricted to supported_languages=["vi"], so any
+   analyze(language="vi", entities=["VN_CCCD"/"VN_PHONE"]) call raised
+   ValueError: No matching recognizers were found to serve the request.
+   Fixed by adding supported_language="vi" to both recognizers.
+
+2. tests/test_pii.py, src/api/main.py, src/quality/validation.py —
+   pd.read_csv() on patients_raw.csv was not given an explicit dtype for
+   the cccd / so_dien_thoai / patient_id columns. Pandas inferred these
+   numeric-looking columns as int64, silently stripping leading zeros.
+   Vietnamese phone numbers always start with "0", so so_dien_thoai was
+   corrupted on every row (always read as a 9-digit number, defeating
+   the VN_PHONE regex \b0[35789]\d{8}\b which requires the leading 0);
+   cccd was corrupted on any value containing leading zeros. Fixed by
+   passing dtype={"cccd": str, "so_dien_thoai": str, "patient_id": str}
+   to every read_csv() call against this file. Confirmed fix: phone
+   detection went from 0% to 100%, cccd detection from 82% to 100%.
+
+Not runnable in this environment
+----------------------------------
+   - great_expectations validator (heavy dependency tree, not installed)
+   - trufflehog secret scan (binary not installed)
+   - FastAPI endpoints not exercised via live HTTP requests (TestClient
+     not run), though dtype bug affecting them is fixed and code reviewed
