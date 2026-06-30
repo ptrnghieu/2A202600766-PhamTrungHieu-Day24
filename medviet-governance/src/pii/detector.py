@@ -17,7 +17,8 @@ def build_vietnamese_analyzer() -> AnalyzerEngine:
     cccd_recognizer = PatternRecognizer(
         supported_entity="VN_CCCD",
         patterns=[cccd_pattern],
-        context=["cccd", "căn cước", "chứng minh", "cmnd"]
+        context=["cccd", "căn cước", "chứng minh", "cmnd"],
+        supported_language="vi"
     )
 
     # --- TASK 2.2.2 ---
@@ -29,7 +30,8 @@ def build_vietnamese_analyzer() -> AnalyzerEngine:
             regex=r"\b0[35789]\d{8}\b",
             score=0.85
         )],
-        context=["điện thoại", "sdt", "phone", "liên hệ"]
+        context=["điện thoại", "sdt", "phone", "liên hệ"],
+        supported_language="vi"
     )
 
     # --- TASK 2.2.3 ---

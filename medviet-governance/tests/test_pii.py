@@ -9,7 +9,10 @@ def anonymizer():
 
 @pytest.fixture
 def sample_df():
-    return pd.read_csv("data/raw/patients_raw.csv").head(50)
+    return pd.read_csv(
+        "data/raw/patients_raw.csv",
+        dtype={"cccd": str, "so_dien_thoai": str, "patient_id": str}
+    ).head(50)
 
 class TestPIIDetection:
 

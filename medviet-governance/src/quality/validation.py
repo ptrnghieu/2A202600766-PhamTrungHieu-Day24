@@ -15,7 +15,12 @@ def build_patient_expectation_suite() -> ExpectationSuite:
     suite = context.add_expectation_suite("patient_data_suite")
 
     # Lấy validator
-    df = pd.read_csv("data/raw/patients_raw.csv")
+    # cccd/so_dien_thoai có leading zero -> đọc dưới dạng string để tránh
+    # pandas suy luận int64 và làm mất số 0 đầu.
+    df = pd.read_csv(
+        "data/raw/patients_raw.csv",
+        dtype={"cccd": str, "so_dien_thoai": str, "patient_id": str}
+    )
     validator = context.sources.pandas_default.read_dataframe(df)
 
     # --- Expectations ---
@@ -61,7 +66,10 @@ def validate_anonymized_data(filepath: str, original_row_count: int = None) -> d
     Validate anonymized data.
     Trả về dict: {"success": bool, "failed_checks": list, "stats": dict}
     """
-    df = pd.read_csv(filepath)
+    df = pd.read_csv(
+        filepath,
+        dtype={"cccd": str, "so_dien_thoai": str, "patient_id": str}
+    )
     results = {
         "success": True,
         "failed_checks": [],
