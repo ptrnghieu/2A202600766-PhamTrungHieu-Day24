@@ -1,0 +1,42 @@
+MedViet Governance Lab — Test Summary
+=======================================
+
+The following checks were run in this sandboxed environment to validate
+the completed implementation. Full pytest suite (tests/test_pii.py)
+requires presidio-analyzer + a Vietnamese spaCy NER model (vi_core_news_lg)
+which is NOT available on PyPI / spaCy's model index (Vietnamese is not
+among spaCy's officially distributed pretrained pipelines). The code is
+written exactly to the lab spec; below are the parts that COULD be
+verified directly in this environment.
+
+1. Phần 1 — Data generation (scripts/generate_data.py)
+   Generated 200 patient records to data/raw/patients_raw.csv. PASS
+
+2. Phần 2 — PII regex patterns (CCCD, phone, email)
+   Verified VN_CCCD regex \b\d{12}\b, VN_PHONE regex \b0[35789]\d{8}\b,
+   and email regex against positive/negative cases. ALL PASS
+   (Full Presidio+spaCy PERSON-entity detection not runnable offline —
+   see note above.)
+
+3. Phần 3 — RBAC (Casbin) enforcement
+   enforce(role, resource, action) checked for all 4 roles against
+   allowed/denied resource-action pairs (admin, ml_engineer, data_analyst,
+   intern), including the deny-by-omission cases (ml_engineer cannot
+   delete production_data or read patient_data; data_analyst/intern
+   cannot read patient_data). ALL PASS (9/9)
+
+4. Phần 4 — Envelope encryption (SimpleVault)
+   encrypt_data() -> decrypt_data() round-trip verified to return the
+   original plaintext exactly. PASS
+
+5. Phần 6 — Bandit SAST scan
+   bandit -r src/ -ll -> No medium/high severity issues found.
+   See reports/bandit_report.json for full output.
+
+Not run in this environment (require network-downloaded model/binaries
+not available for Vietnamese, or external tools not installed):
+   - tests/test_pii.py full pytest run (needs vi_core_news_lg spaCy model)
+   - trufflehog secret scan (binary not installed)
+   - OPA policy eval (opa binary not installed) — rules were reviewed
+     manually for correctness against the lab's test cases instead.
+   - great_expectations validator (heavy dependency, not installed)

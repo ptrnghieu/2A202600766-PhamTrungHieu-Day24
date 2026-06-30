@@ -8,16 +8,19 @@ p, admin, model_artifacts, write
 p, ml_engineer, training_data, read
 p, ml_engineer, model_artifacts, read
 p, ml_engineer, model_artifacts, write
-# TODO: ml_engineer KHÔNG được delete production data
-# TODO: ml_engineer KHÔNG được đọc raw PII
+# Engine là allow-only (default deny): không có p-line nào cấp
+# ml_engineer quyền delete production_data hoặc read patient_data (raw PII),
+# nên 2 hành động đó tự động bị từ chối.
 
 p, data_analyst, aggregated_metrics, read
 p, data_analyst, reports, write
-# TODO: data_analyst KHÔNG được đọc raw PII
+# Không có p-line cấp data_analyst quyền read patient_data,
+# nên raw PII tự động bị từ chối (default deny).
 
 p, intern, sandbox_data, read
 p, intern, sandbox_data, write
-# TODO: intern KHÔNG được access production
+# Không có p-line nào cấp intern quyền trên patient_data/training_data/
+# model_artifacts (production resources), nên bị từ chối mặc định.
 
 # Role inheritance
 g, alice, admin
